@@ -1,15 +1,5 @@
 import logging
-import os
-from pathlib import Path
 from pydantic import BaseModel
-
-# Configure webtech data directory BEFORE importing webtech
-# This must happen at module level because webtech tries to create the directory at import time
-# Use /tmp directory on Vercel (only writable location in serverless)
-webtech_data_dir = Path('/tmp/.local/share/webtech')
-webtech_data_dir.mkdir(parents=True, exist_ok=True)
-os.environ['XDG_DATA_HOME'] = '/tmp/.local/share'
-
 import webtech
 from opal_tools_sdk import tool
 from fastapi import HTTPException
@@ -21,8 +11,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("NitecoOpalToolsTest")
 
 @tool(
-    name="tech_stack_discovery",
-    description="Analyzes a website's technology stack. Use when user wants to identify technologies, frameworks, or tools used by a website.",
+  "tech_stack_discovery", 
+  "Analyzes a website's technology stack. Use when user wants to identify technologies, frameworks, or tools used by a website.", 
 )
 async def tech_stack_discovery(params: CheckTechStackParams):
     url = params.url
@@ -53,4 +43,4 @@ async def tech_stack_discovery(params: CheckTechStackParams):
     
     except Exception as e:
         logger.error(f"Error checking tech stack: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")

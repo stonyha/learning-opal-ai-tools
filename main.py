@@ -8,3 +8,4 @@ opal_tools_service = ToolsService(app)
 # Import your tool here
 from src.tools.url_slug_generator import generate_url_slug
 from src.tools.broken_link_checker import broken_link_checker
+from src.tools.tech_stack_checker import tech_stack_discovery
