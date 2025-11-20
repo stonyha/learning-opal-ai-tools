@@ -1,0 +1,3 @@
+# Exclude prompts build artifacts and source
+prompts/
+prompts/**
