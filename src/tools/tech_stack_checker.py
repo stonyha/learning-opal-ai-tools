@@ -6,35 +6,61 @@ from opal_tools_sdk import tool
 from fastapi import HTTPException
 
 # Vercel requires writing files only to /tmp directory
-# Monkey patch Path.home() to return /tmp during webtech import
-# This ensures webtech uses /tmp instead of the home directory
-_original_home = Path.home
+# Set XDG_DATA_HOME environment variable before importing webtech
+os.environ['XDG_DATA_HOME'] = '/tmp'
+
+# Create webtech data directory in /tmp
 webtech_data_dir = Path("/tmp/.local/share/webtech")
 webtech_data_dir.mkdir(parents=True, exist_ok=True)
 
-def _patched_home_func(cls):
-    """Temporarily return /tmp as home for webtech initialization"""
+# Also create /tmp/webtech as alternative
+Path("/tmp/webtech").mkdir(parents=True, exist_ok=True)
+
+# Monkey patch both Path.home() and os.mkdir to force webtech to use /tmp
+_original_home = Path.home
+_original_mkdir = os.mkdir
+
+@classmethod
+def _patched_home(cls):
+    """Return /tmp as home directory for webtech"""
     return Path("/tmp")
 
-# Patch Path.home() before importing webtech
-Path.home = classmethod(_patched_home_func)
+def _patched_mkdir(path, mode=0o777, *, dir_fd=None):
+    """Patched mkdir that redirects webtech paths to /tmp and creates parent directories"""
+    path_str = str(path)
+    # Redirect any webtech-related paths to /tmp
+    if 'webtech' in path_str:
+        # Always use /tmp/.local/share/webtech for webtech directories
+        new_path = Path("/tmp/.local/share/webtech")
+        new_path.mkdir(parents=True, exist_ok=True, mode=mode)
+        return
+    # For other paths, try to create with parents
+    try:
+        Path(path).mkdir(parents=True, exist_ok=True, mode=mode)
+    except (OSError, PermissionError):
+        _original_mkdir(path, mode, dir_fd=dir_fd)
+
+# Apply patches before importing webtech
+Path.home = _patched_home
+os.mkdir = _patched_mkdir
 
 try:
     import webtech
-    # After import, restore original Path.home()
+    # Restore original functions after import
     Path.home = _original_home
+    os.mkdir = _original_mkdir
     
-    # Also patch DATA_DIR directly to ensure it uses /tmp
+    # Ensure DATA_DIR is set correctly
     try:
         from webtech import database
-        database.DATA_DIR = str(webtech_data_dir)
+        if hasattr(database, 'DATA_DIR'):
+            database.DATA_DIR = str(webtech_data_dir)
     except (ImportError, AttributeError):
-        # Try alternative import path
-        if hasattr(webtech, 'database'):
-            webtech.database.DATA_DIR = str(webtech_data_dir)
+        pass
 except Exception:
-    # Restore Path.home() even if import fails
+    # Restore original functions even if import fails
     Path.home = _original_home
+    os.mkdir = _original_mkdir
     raise
 
 class CheckTechStackParams(BaseModel):
