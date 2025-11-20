@@ -1,8 +1,41 @@
 import logging
+import os
+from pathlib import Path
 from pydantic import BaseModel
-import webtech
 from opal_tools_sdk import tool
 from fastapi import HTTPException
+
+# Vercel requires writing files only to /tmp directory
+# Monkey patch Path.home() to return /tmp during webtech import
+# This ensures webtech uses /tmp instead of the home directory
+_original_home = Path.home
+webtech_data_dir = Path("/tmp/.local/share/webtech")
+webtech_data_dir.mkdir(parents=True, exist_ok=True)
+
+def _patched_home_func(cls):
+    """Temporarily return /tmp as home for webtech initialization"""
+    return Path("/tmp")
+
+# Patch Path.home() before importing webtech
+Path.home = classmethod(_patched_home_func)
+
+try:
+    import webtech
+    # After import, restore original Path.home()
+    Path.home = _original_home
+    
+    # Also patch DATA_DIR directly to ensure it uses /tmp
+    try:
+        from webtech import database
+        database.DATA_DIR = str(webtech_data_dir)
+    except (ImportError, AttributeError):
+        # Try alternative import path
+        if hasattr(webtech, 'database'):
+            webtech.database.DATA_DIR = str(webtech_data_dir)
+except Exception:
+    # Restore Path.home() even if import fails
+    Path.home = _original_home
+    raise
 
 class CheckTechStackParams(BaseModel):
     url: str
